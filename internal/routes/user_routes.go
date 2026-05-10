@@ -1,0 +1,13 @@
+package routes
+
+import (
+	"apiserver/internal/http/handlers"
+	"net/http"
+)
+
+func registerUserRoutes(mux *http.ServeMux, h *handlers.UserHandler) {
+	mux.HandleFunc("POST /users", h.CreateUser)
+	mux.HandleFunc("DELETE /users/{id}", h.DeleteUser)
+	mux.HandleFunc("GET /users", h.GetAll)
+	mux.HandleFunc("GET /users/{id}", h.FindByID)
+}
