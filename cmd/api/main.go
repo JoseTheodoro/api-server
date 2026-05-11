@@ -44,7 +44,7 @@ func main() {
 
 	s := http.NewServer(":9090", mux)
 	errCh := make(chan error, 1)
-	slog.Info("server is running", "port", ":9090")
+	slog.Info("server started successful", "port", ":9090")
 	go func() {
 		if err := s.Start(); err != nil && !errors.Is(err, mm.ErrServerClosed) {
 			errCh <- err
