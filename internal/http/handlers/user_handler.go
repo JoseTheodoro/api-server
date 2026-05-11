@@ -37,7 +37,7 @@ func (u *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	input := services.CreateUserInput{
+	input := services.UserCreateInput{
 		Name: ur.Name,
 	}
 
@@ -105,4 +105,51 @@ func (u *UserHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 	if err := writeJSON(w, http.StatusOK, users); err != nil {
 		slog.Error("unable encode to json", "err", err)
 	}
+}
+
+func (u *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
+	strID := r.PathValue("id")
+	var userUpdateRequest dto.UserUpdateRequest
+	userID, err := strconv.Atoi(strID)
+	if err != nil {
+		slog.Error("unable to convert path", "URI", r.URL.Path, "err", err)
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	// create a request and validate
+	if err := json.NewDecoder(r.Body).Decode(&userUpdateRequest); err != nil {
+		slog.Error("unable decode payload")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	userUpdateRequest.ID = userID
+
+	if valid := userUpdateRequest.Validate(); valid == false {
+		slog.Error("request invalid", "rquest", userUpdateRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// create a update user input
+	input := services.UserUpdateInput{
+		ID:   userUpdateRequest.ID,
+		Name: userUpdateRequest.Name,
+	}
+
+	if err := u.userService.UpdateUser(r.Context(), input); err != nil {
+		if errors.Is(err, domain.ErrUserNotFound) {
+			slog.Info("handler user not found", "err", err)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		slog.Error("handler error update user", "err", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+
 }

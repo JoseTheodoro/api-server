@@ -14,10 +14,12 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v5"
 	"github.com/testcontainers/testcontainers-go"
 	pg "github.com/testcontainers/testcontainers-go/modules/postgres"
 
+	"apiserver/internal/domain"
 	"apiserver/internal/http/handlers"
 	"apiserver/internal/repository/postgres"
 	"apiserver/internal/services"
@@ -103,6 +105,53 @@ func TestCreateUser_InvalidPayload_ReturnsBadRequest(T *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		T.Error("status code is", w.Code, "expected: ", http.StatusBadRequest)
+	}
+
+}
+
+func TestUpdateUser_UserExists_ReturnsNoContent(t *testing.T) {
+	method := "PUT"
+	pattern := fmt.Sprintf("%s /users/{id}", method)
+	conn := postgres.NewConnection(testDSN)
+	db, err := conn.Connect(testCtx)
+	if err != nil {
+		t.Fatal("error to connect postgress", "err", err)
+	}
+
+	bigRichard := domain.User{
+		UUID: uuid.New(),
+		Name: "Big Richard",
+	}
+	var userIDExists int
+	err = db.QueryRowContext(testCtx, "INSERT INTO users (uuid, name) VALUES ($1, $2) RETURNING id", bigRichard.UUID.String(), bigRichard.Name).Scan(&userIDExists)
+	if err != nil {
+		t.Fatal("error on insert user to update user")
+	}
+
+	ur := postgres.NewUserRepositoryPostgres(db)
+	us := services.NewUserService(ur)
+	uh := handlers.NewUserHandler(us)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc(pattern, uh.UpdateUser)
+
+	payload := bytes.NewReader([]byte(`{"name": "User Updated"}`))
+	req := httptest.NewRequestWithContext(testCtx, method, fmt.Sprintf("/users/%d", userIDExists), payload)
+	writer := httptest.NewRecorder()
+
+	mux.ServeHTTP(writer, req)
+
+	if writer.Code != http.StatusNoContent {
+		t.Error("expected status 204, got:", writer.Code)
+	}
+	userUpdated := domain.User{}
+	err = db.QueryRowContext(testCtx, "SELECT id, name, updated_at FROM users where id = $1", userIDExists).Scan(&userUpdated.ID, &userUpdated.Name, &userUpdated.UpdatedAt)
+	if err != nil {
+		t.Fatal("error executing query for find user updated", err)
+	}
+
+	if userUpdated.Name != "User Updated" {
+		t.Error("exepected User Update, got:", userUpdated.Name)
 	}
 
 }

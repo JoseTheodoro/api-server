@@ -33,14 +33,14 @@ func (r *UserRepositoryPostgres) Create(ctx context.Context, user *domain.User) 
 func (r *UserRepositoryPostgres) GetAll(ctx context.Context) ([]*domain.User, error) {
 
 	var users []*domain.User
-	rows, err := r.db.QueryContext(ctx, "SELECT id, uuid, name, created_at FROM users")
+	rows, err := r.db.QueryContext(ctx, "SELECT id, uuid, name, created_at, updated_at FROM users")
 	if err != nil {
 		return nil, err
 	}
 
 	for rows.Next() {
 		u := &domain.User{}
-		if err := rows.Scan(&u.ID, &u.UUID, &u.Name, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.UUID, &u.Name, &u.CreatedAt, &u.UpdatedAt); err != nil {
 			return nil, err
 		}
 		users = append(users, u)
@@ -55,7 +55,7 @@ func (r *UserRepositoryPostgres) GetAll(ctx context.Context) ([]*domain.User, er
 
 func (r *UserRepositoryPostgres) FindByID(ctx context.Context, id int) (*domain.User, error) {
 	user := &domain.User{}
-	err := r.db.QueryRowContext(ctx, "SELECT id, uuid, name, created_at FROM users WHERE id = $1", id).Scan(&user.ID, &user.UUID, &user.Name, &user.CreatedAt)
+	err := r.db.QueryRowContext(ctx, "SELECT id, uuid, name, created_at, updated_at FROM users WHERE id = $1", id).Scan(&user.ID, &user.UUID, &user.Name, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, repository.ErrNotFound
@@ -83,4 +83,14 @@ func (r *UserRepositoryPostgres) Delete(ctx context.Context, id int) error {
 
 	return nil
 
+}
+
+func (r *UserRepositoryPostgres) Update(ctx context.Context, user *domain.User) error {
+	slog.Info("user update:", "user:", user)
+	_, err := r.db.ExecContext(ctx, "UPDATE users SET name = $2, updated_at = $3 WHERE id = $1", user.ID, user.Name, user.UpdatedAt)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
