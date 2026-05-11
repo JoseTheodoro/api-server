@@ -87,7 +87,6 @@ func (r *UserRepositoryPostgres) Delete(ctx context.Context, id int) error {
 }
 
 func (r *UserRepositoryPostgres) Update(ctx context.Context, user *domain.User) error {
-	slog.Info("user update:", "user:", user)
 	_, err := r.db.ExecContext(ctx, "UPDATE users SET name = $2, updated_at = $3 WHERE id = $1", user.ID, user.Name, user.UpdatedAt)
 	if err != nil {
 		return err

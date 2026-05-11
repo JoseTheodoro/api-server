@@ -1,5 +1,3 @@
-package grpc
+package main
 
-func main() {
-	// em breve eu vou implementar
-}
+func main() {}
