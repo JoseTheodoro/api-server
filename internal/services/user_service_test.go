@@ -30,6 +30,10 @@ func (fr *fakeUserRepo) GetAll(ctx context.Context) ([]*domain.User, error) {
 	return nil, nil
 }
 
+func (fr *fakeUserRepo) Update(ctx context.Context, user *domain.User) error {
+	return nil
+}
+
 func TestServiceDeleteUser(t *testing.T) {
 	var ctx context.Context = context.Background()
 

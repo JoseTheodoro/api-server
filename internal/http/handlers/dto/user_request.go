@@ -10,3 +10,16 @@ func (u *UserCreateRequest) Validate() bool {
 	}
 	return true
 }
+
+type UserUpdateRequest struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+func (up *UserUpdateRequest) Validate() bool {
+	if up.ID <= 0 || up.Name == "" {
+		return false
+	}
+
+	return true
+}

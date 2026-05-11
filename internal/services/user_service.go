@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -12,17 +13,24 @@ import (
 )
 
 type UserService interface {
-	CreateUserFromBusinessRule(ctx context.Context, userCreateInput CreateUserInput) error
+	CreateUserFromBusinessRule(ctx context.Context, userCreateInput UserCreateInput) error
 	GetAllUserFromAnyBusinessRule(ctx context.Context) ([]*domain.User, error)
 	FindByID(ctx context.Context, id int) (*domain.User, error)
 	DeleteUser(ctx context.Context, id int) error
+	UpdateUser(ctx context.Context, userUpdateInput UserUpdateInput) error
 }
 
 type userService struct {
 	repository repository.UserRepository
 }
 
-type CreateUserInput struct {
+type UserUpdateInput struct {
+	ID        int
+	Name      string
+	UpdatedAt time.Time
+}
+
+type UserCreateInput struct {
 	Name string
 }
 
@@ -36,7 +44,7 @@ func (u *userService) GetAllUserFromAnyBusinessRule(ctx context.Context) ([]*dom
 	return u.repository.GetAll(ctx)
 }
 
-func (u *userService) CreateUserFromBusinessRule(ctx context.Context, input CreateUserInput) error {
+func (u *userService) CreateUserFromBusinessRule(ctx context.Context, input UserCreateInput) error {
 
 	user := &domain.User{
 		Name: input.Name,
@@ -70,4 +78,20 @@ func (u *userService) FindByID(ctx context.Context, id int) (*domain.User, error
 		return nil, fmt.Errorf("find user by id: %w", err)
 	}
 	return user, nil
+}
+
+func (u *userService) UpdateUser(ctx context.Context, input UserUpdateInput) error {
+	user, err := u.FindByID(ctx, input.ID)
+	if err != nil {
+		return fmt.Errorf("user not found for update > %w", err)
+	}
+	now := time.Now().UTC()
+	user.UpdatedAt = &now
+	user.Name = input.Name
+	if err := u.repository.Update(ctx, user); err != nil {
+		return err
+	}
+
+	return nil
+
 }
