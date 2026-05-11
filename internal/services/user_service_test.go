@@ -1,11 +1,12 @@
 package services
 
 import (
-	"apiserver/internal/domain"
-	"apiserver/internal/repository"
 	"context"
 	"errors"
 	"testing"
+
+	"apiserver/internal/domain"
+	"apiserver/internal/repository"
 )
 
 type fakeUserRepo struct {

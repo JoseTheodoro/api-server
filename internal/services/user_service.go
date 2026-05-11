@@ -1,13 +1,14 @@
 package services
 
 import (
-	"apiserver/internal/domain"
-	"apiserver/internal/repository"
 	"context"
 	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
+
+	"apiserver/internal/domain"
+	"apiserver/internal/repository"
 )
 
 type UserService interface {

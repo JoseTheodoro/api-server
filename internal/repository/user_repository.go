@@ -1,9 +1,10 @@
 package repository
 
 import (
-	"apiserver/internal/domain"
 	"context"
 	"errors"
+
+	"apiserver/internal/domain"
 )
 
 type UserRepository interface {

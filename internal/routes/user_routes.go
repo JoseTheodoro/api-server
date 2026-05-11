@@ -1,8 +1,9 @@
 package routes
 
 import (
-	"apiserver/internal/http/handlers"
 	"net/http"
+
+	"apiserver/internal/http/handlers"
 )
 
 func registerUserRoutes(mux *http.ServeMux, h *handlers.UserHandler) {
