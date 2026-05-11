@@ -2,8 +2,10 @@ package postgres
 
 import (
 	"apiserver/internal/domain"
+	"apiserver/internal/repository"
 	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
 )
 
@@ -54,6 +56,9 @@ func (r *UserRepositoryPostgres) FindByID(ctx context.Context, id int) (*domain.
 	user := &domain.User{}
 	err := r.db.QueryRowContext(ctx, "SELECT id, uuid, name, created_at FROM users WHERE id = $1", id).Scan(&user.ID, &user.UUID, &user.Name, &user.CreatedAt)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, repository.ErrNotFound
+		}
 		return nil, err
 	}
 
@@ -61,10 +66,20 @@ func (r *UserRepositoryPostgres) FindByID(ctx context.Context, id int) (*domain.
 }
 
 func (r *UserRepositoryPostgres) Delete(ctx context.Context, id int) error {
-	_, err := r.db.ExecContext(ctx, "DELETE FROM users where id = $1", id)
+	result, err := r.db.ExecContext(ctx, "DELETE FROM users where id = $1", id)
 	if err != nil {
 		return err
 	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows == 0 {
+		return repository.ErrNoRowsAffected
+	}
+
 	return nil
 
 }

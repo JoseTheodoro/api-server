@@ -3,6 +3,7 @@ package repository
 import (
 	"apiserver/internal/domain"
 	"context"
+	"errors"
 )
 
 type UserRepository interface {
@@ -11,3 +12,6 @@ type UserRepository interface {
 	GetAll(ctx context.Context) ([]*domain.User, error)
 	Delete(ctx context.Context, id int) error
 }
+
+var ErrNotFound = errors.New("user not found at database")
+var ErrNoRowsAffected = errors.New("no rows affected by query")
