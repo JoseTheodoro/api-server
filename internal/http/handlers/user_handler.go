@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"apiserver/internal/domain"
 	"apiserver/internal/http/handlers/dto"
 	"apiserver/internal/services"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -56,6 +58,11 @@ func (u *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := u.userService.DeleteUser(r.Context(), userID); err != nil {
+		if errors.Is(err, domain.ErrUserNotFound) {
+			slog.Info("user not found", "err", err)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		slog.Error("cannot delete user", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -68,13 +75,20 @@ func (u *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 func (u *UserHandler) FindByID(w http.ResponseWriter, r *http.Request) {
 	strID := r.PathValue("id")
 	id, err := strconv.Atoi(strID)
+
 	if err != nil {
 		slog.Error("unable parse URI", "URI", r.URL.Path)
 		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
 	user, err := u.userService.FindByID(r.Context(), id)
 	if err != nil {
-		slog.Error("unable find user by ID", "err", err)
+		if errors.Is(err, domain.ErrUserNotFound) {
+			w.WriteHeader(http.StatusNotFound)
+			slog.Error("user handler err:", "err", err)
+			return
+		}
+		slog.Error("user handler err:", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

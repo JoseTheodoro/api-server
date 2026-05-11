@@ -4,6 +4,8 @@ import (
 	"apiserver/internal/domain"
 	"apiserver/internal/repository"
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 )
@@ -48,9 +50,23 @@ func (u *userService) CreateUserFromBusinessRule(ctx context.Context, input Crea
 }
 
 func (u *userService) DeleteUser(ctx context.Context, id int) error {
-	return u.repository.Delete(ctx, id)
+	err := u.repository.Delete(ctx, id)
+	if err != nil {
+		if errors.Is(err, repository.ErrNoRowsAffected) {
+			return fmt.Errorf("delete by user: %w", domain.ErrUserNotFound)
+		}
+		return fmt.Errorf("delete by user: %w", err)
+	}
+	return nil
 }
 
 func (u *userService) FindByID(ctx context.Context, id int) (*domain.User, error) {
-	return u.repository.FindByID(ctx, id)
+	user, err := u.repository.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, fmt.Errorf("find user by id: %w", domain.ErrUserNotFound)
+		}
+		return nil, fmt.Errorf("find user by id: %w", err)
+	}
+	return user, nil
 }

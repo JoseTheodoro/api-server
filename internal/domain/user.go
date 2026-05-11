@@ -1,6 +1,10 @@
 package domain
 
-import "github.com/google/uuid"
+import (
+	"errors"
+
+	"github.com/google/uuid"
+)
 
 type User struct {
 	ID        int       `json:"id"`
@@ -9,4 +13,4 @@ type User struct {
 	CreatedAt string    `json:"created_at"`
 }
 
-func (u *User) Validate() bool { return true }
+var ErrUserNotFound = errors.New("user not found")
