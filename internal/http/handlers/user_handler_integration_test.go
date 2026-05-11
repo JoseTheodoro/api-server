@@ -16,7 +16,6 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v5"
-	"github.com/testcontainers/testcontainers-go"
 	pg "github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"apiserver/internal/domain"
@@ -27,8 +26,8 @@ import (
 
 var testCtx context.Context
 var testDSN string
-var testContainer testcontainers.Container
 var pgContainer *pg.PostgresContainer
+var testContainer *pg.PostgresContainer
 
 func TestMain(M *testing.M) {
 	setupGlobalState()
@@ -42,8 +41,12 @@ func setupGlobalState() {
 }
 
 func teardownGlobalState() {
+
 	defer func() {
-		testcontainers.TerminateContainer(pgContainer)
+		err := testContainer.Terminate(testCtx)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}()
 }
 
@@ -175,6 +178,7 @@ func createPostgresContainer() {
 	if err != nil {
 		log.Fatal("error on ConnectionString > err:", err)
 	}
+	testContainer = pgContainer
 }
 
 func runMigrations(dsn string) {
