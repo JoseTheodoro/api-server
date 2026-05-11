@@ -1,12 +1,13 @@
 package postgres
 
 import (
-	"apiserver/internal/domain"
-	"apiserver/internal/repository"
 	"context"
 	"database/sql"
 	"errors"
 	"log/slog"
+
+	"apiserver/internal/domain"
+	"apiserver/internal/repository"
 )
 
 type UserRepositoryPostgres struct {

@@ -1,20 +1,21 @@
 package main
 
 import (
-	"apiserver/internal/http"
+	"context"
+	"errors"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	hhttp "apiserver/internal/http"
 	"apiserver/internal/http/handlers"
 	"apiserver/internal/repository/memory"
 	"apiserver/internal/repository/postgres"
 	"apiserver/internal/routes"
 	"apiserver/internal/services"
-	"context"
-	"errors"
-	"log/slog"
-	mm "net/http"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
 )
 
 func main() {
@@ -39,14 +40,14 @@ func main() {
 	productService := services.NewProductService(productRepository)
 	productHandler := handlers.NewProductHandler(productService)
 
-	mux := mm.NewServeMux()
+	mux := http.NewServeMux()
 	routes.Register(mux, routes.Handlers{User: userHandler, Product: productHandler})
 
-	s := http.NewServer(":9090", mux)
+	s := hhttp.NewServer(":9090", mux)
 	errCh := make(chan error, 1)
 	slog.Info("server started successful", "port", ":9090")
 	go func() {
-		if err := s.Start(); err != nil && !errors.Is(err, mm.ErrServerClosed) {
+		if err := s.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}
 	}()

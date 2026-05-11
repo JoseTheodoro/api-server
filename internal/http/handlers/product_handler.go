@@ -1,9 +1,10 @@
 package handlers
 
 import (
-	"apiserver/internal/services"
 	"log/slog"
 	"net/http"
+
+	"apiserver/internal/services"
 )
 
 type ProductHandler struct {

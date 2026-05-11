@@ -1,14 +1,15 @@
 package handlers
 
 import (
-	"apiserver/internal/domain"
-	"apiserver/internal/http/handlers/dto"
-	"apiserver/internal/services"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
+
+	"apiserver/internal/domain"
+	"apiserver/internal/http/handlers/dto"
+	"apiserver/internal/services"
 )
 
 type UserHandler struct {

@@ -1,9 +1,6 @@
 package handlers_test
 
 import (
-	"apiserver/internal/http/handlers"
-	"apiserver/internal/repository/postgres"
-	"apiserver/internal/services"
 	"bytes"
 	"context"
 	"errors"
@@ -20,6 +17,10 @@ import (
 	_ "github.com/jackc/pgx/v5"
 	"github.com/testcontainers/testcontainers-go"
 	pg "github.com/testcontainers/testcontainers-go/modules/postgres"
+
+	"apiserver/internal/http/handlers"
+	"apiserver/internal/repository/postgres"
+	"apiserver/internal/services"
 )
 
 var testCtx context.Context
