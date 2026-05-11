@@ -41,12 +41,14 @@ func (u *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		Name: ur.Name,
 	}
 
-	if err := u.userService.CreateUserFromBusinessRule(r.Context(), input); err != nil {
+	user, err := u.userService.CreateUserFromBusinessRule(r.Context(), input)
+	if err != nil {
+		slog.Error("handler error on create user", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
+	writeJSON(w, http.StatusOK, user)
 }
 
 func (u *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {

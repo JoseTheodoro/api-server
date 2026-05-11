@@ -69,7 +69,7 @@ func TestCreateUser_ValidPayload_ReturnsCreated(T *testing.T) {
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, request)
 
-	if rr.Code != http.StatusCreated {
+	if rr.Code != http.StatusOK {
 		T.Error("failed create user on endpoint", "statuscode:", rr.Code)
 	}
 
