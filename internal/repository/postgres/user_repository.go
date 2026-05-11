@@ -18,15 +18,16 @@ func NewUserRepositoryPostgres(db *sql.DB) *UserRepositoryPostgres {
 	return &UserRepositoryPostgres{db: db}
 }
 
-func (r *UserRepositoryPostgres) Create(ctx context.Context, user *domain.User) error {
+func (r *UserRepositoryPostgres) Create(ctx context.Context, user *domain.User) (*domain.User, error) {
 
-	_, err := r.db.ExecContext(ctx, "INSERT INTO users (name, uuid) VALUES ($1, $2)", user.Name, user.UUID.String())
+	err := r.db.QueryRowContext(ctx, "INSERT INTO users (name, uuid) VALUES ($1, $2) RETURNING id, uuid, name, created_at, updated_at", user.Name, user.UUID.String()).
+		Scan(&user.ID, &user.UUID, &user.Name, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	slog.Info("user created successful", "user", user)
-	return nil
+	return user, nil
 
 }
 

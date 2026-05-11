@@ -22,8 +22,8 @@ func (fr *fakeUserRepo) FindByID(ctx context.Context, id int) (*domain.User, err
 	return fr.FindByIDFakeFn(ctx, id)
 }
 
-func (fr *fakeUserRepo) Create(ctx context.Context, user *domain.User) error {
-	return nil
+func (fr *fakeUserRepo) Create(ctx context.Context, user *domain.User) (*domain.User, error) {
+	return nil, nil
 }
 
 func (fr *fakeUserRepo) GetAll(ctx context.Context) ([]*domain.User, error) {

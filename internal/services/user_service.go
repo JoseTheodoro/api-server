@@ -13,7 +13,7 @@ import (
 )
 
 type UserService interface {
-	CreateUserFromBusinessRule(ctx context.Context, userCreateInput UserCreateInput) error
+	CreateUserFromBusinessRule(ctx context.Context, userCreateInput UserCreateInput) (*domain.User, error)
 	GetAllUserFromAnyBusinessRule(ctx context.Context) ([]*domain.User, error)
 	FindByID(ctx context.Context, id int) (*domain.User, error)
 	DeleteUser(ctx context.Context, id int) error
@@ -44,18 +44,19 @@ func (u *userService) GetAllUserFromAnyBusinessRule(ctx context.Context) ([]*dom
 	return u.repository.GetAll(ctx)
 }
 
-func (u *userService) CreateUserFromBusinessRule(ctx context.Context, input UserCreateInput) error {
+func (u *userService) CreateUserFromBusinessRule(ctx context.Context, input UserCreateInput) (*domain.User, error) {
 
 	user := &domain.User{
 		Name: input.Name,
 		UUID: uuid.New(),
 	}
 
-	if err := u.repository.Create(ctx, user); err != nil {
-		return err
+	user, err := u.repository.Create(ctx, user)
+	if err != nil {
+		return nil, fmt.Errorf("service error on create user > %w", err)
 	}
 
-	return nil
+	return user, nil
 }
 
 func (u *userService) DeleteUser(ctx context.Context, id int) error {
