@@ -3,6 +3,7 @@ package handlers_test
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -24,9 +25,18 @@ import (
 	"apiserver/internal/services"
 )
 
-var testCtx context.Context
-var testDSN string
-var pgContainer *pg.PostgresContainer
+var (
+	conn                   *postgres.Connection
+	db                     *sql.DB
+	testCtx                context.Context
+	err                    error
+	testDSN                string
+	pgContainer            *pg.PostgresContainer
+	repositoryUserPostgres *postgres.UserRepositoryPostgres
+	serviceUser            services.UserService
+	handleUser             *handlers.UserHandler
+	mux                    *http.ServeMux
+)
 
 func TestMain(M *testing.M) {
 	setupGlobalState()
@@ -36,11 +46,21 @@ func TestMain(M *testing.M) {
 
 func setupGlobalState() {
 	createPostgresContainer()
+	conn = postgres.NewConnection(testDSN)
+	db, err = conn.Connect(testCtx)
+	if err != nil {
+		log.Fatal("error to connect postgres container")
+	}
 	runMigrations(testDSN)
+
+	repositoryUserPostgres = postgres.NewUserRepositoryPostgres(db)
+	serviceUser = services.NewUserService(repositoryUserPostgres)
+	handleUser = handlers.NewUserHandler(serviceUser)
+	mux = http.NewServeMux()
 }
 
 func teardownGlobalState() {
-
+	defer db.Close()
 	defer func() {
 		err := pgContainer.Terminate(testCtx)
 		if err != nil {
@@ -50,29 +70,17 @@ func teardownGlobalState() {
 }
 
 func TestCreateUser_ValidPayload_ReturnsCreated(T *testing.T) {
-	c := postgres.NewConnection(testDSN)
-
-	db, err := c.Connect(testCtx)
-	if err != nil {
-		T.Fatal("error on connection db", err)
-	}
-	defer db.Close()
-
-	r := postgres.NewUserRepositoryPostgres(db)
-	s := services.NewUserService(r)
-	h := handlers.NewUserHandler(s)
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /users", h.CreateUser)
+	mux.HandleFunc("POST /users", handleUser.CreateUser)
 
 	// monta request
 	payload := bytes.NewReader([]byte(`{"name": "Testing Name"}`))
 	request := httptest.NewRequest("POST", "/users", payload)
-	rr := httptest.NewRecorder()
-	mux.ServeHTTP(rr, request)
+	w := httptest.NewRecorder()
 
-	if rr.Code != http.StatusOK {
-		T.Error("failed create user on endpoint", "statuscode:", rr.Code)
+	mux.ServeHTTP(w, request)
+
+	if w.Code != http.StatusOK {
+		T.Error("failed create user on endpoint", "statuscode:", w.Code)
 	}
 
 	var count int
@@ -87,22 +95,10 @@ func TestCreateUser_ValidPayload_ReturnsCreated(T *testing.T) {
 }
 
 func TestCreateUser_InvalidPayload_ReturnsBadRequest(T *testing.T) {
-	conn := postgres.NewConnection(testDSN)
-	db, err := conn.Connect(testCtx)
-	if err != nil {
-		log.Fatal("error on connect on postgres container", err)
-	}
-	r := postgres.NewUserRepositoryPostgres(db)
-	s := services.NewUserService(r)
-	h := handlers.NewUserHandler(s)
 
 	payload := bytes.NewReader([]byte(`{}`))
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /users", h.CreateUser)
-
 	request := httptest.NewRequest("POST", "/users", payload)
 	w := httptest.NewRecorder()
-
 	mux.ServeHTTP(w, request)
 
 	if w.Code != http.StatusBadRequest {
@@ -114,11 +110,6 @@ func TestCreateUser_InvalidPayload_ReturnsBadRequest(T *testing.T) {
 func TestUpdateUser_UserExists_ReturnsNoContent(t *testing.T) {
 	method := "PUT"
 	pattern := fmt.Sprintf("%s /users/{id}", method)
-	conn := postgres.NewConnection(testDSN)
-	db, err := conn.Connect(testCtx)
-	if err != nil {
-		t.Fatal("error to connect postgress", "err", err)
-	}
 
 	bigRichard := domain.User{
 		UUID: uuid.New(),
@@ -129,23 +120,17 @@ func TestUpdateUser_UserExists_ReturnsNoContent(t *testing.T) {
 	if err != nil {
 		t.Fatal("error on insert user to update user")
 	}
-
-	ur := postgres.NewUserRepositoryPostgres(db)
-	us := services.NewUserService(ur)
-	uh := handlers.NewUserHandler(us)
-
-	mux := http.NewServeMux()
-	mux.HandleFunc(pattern, uh.UpdateUser)
+	mux.HandleFunc(pattern, handleUser.UpdateUser)
 
 	payload := bytes.NewReader([]byte(`{"name": "User Updated"}`))
 	req := httptest.NewRequestWithContext(testCtx, method, fmt.Sprintf("/users/%d", userIDExists), payload)
-	writer := httptest.NewRecorder()
+	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(writer, req)
-
-	if writer.Code != http.StatusNoContent {
-		t.Error("expected status 204, got:", writer.Code)
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusNoContent {
+		t.Error("expected status 204, got:", w.Code)
 	}
+
 	userUpdated := domain.User{}
 	err = db.QueryRowContext(testCtx, "SELECT id, name, updated_at FROM users where id = $1", userIDExists).Scan(&userUpdated.ID, &userUpdated.Name, &userUpdated.UpdatedAt)
 	if err != nil {
@@ -155,7 +140,6 @@ func TestUpdateUser_UserExists_ReturnsNoContent(t *testing.T) {
 	if userUpdated.Name != "User Updated" {
 		t.Error("exepected User Update, got:", userUpdated.Name)
 	}
-
 }
 
 func createPostgresContainer() {
