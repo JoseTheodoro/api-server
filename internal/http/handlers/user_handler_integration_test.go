@@ -27,7 +27,6 @@ import (
 var testCtx context.Context
 var testDSN string
 var pgContainer *pg.PostgresContainer
-var testContainer *pg.PostgresContainer
 
 func TestMain(M *testing.M) {
 	setupGlobalState()
@@ -43,7 +42,7 @@ func setupGlobalState() {
 func teardownGlobalState() {
 
 	defer func() {
-		err := testContainer.Terminate(testCtx)
+		err := pgContainer.Terminate(testCtx)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -161,8 +160,9 @@ func TestUpdateUser_UserExists_ReturnsNoContent(t *testing.T) {
 
 func createPostgresContainer() {
 	testCtx = context.Background()
+	var err error
 
-	pgContainer, err := pg.Run(testCtx,
+	pgContainer, err = pg.Run(testCtx,
 		"postgres:16-alpine",
 		pg.WithDatabase("test"),
 		pg.WithUsername("test"),
@@ -178,7 +178,6 @@ func createPostgresContainer() {
 	if err != nil {
 		log.Fatal("error on ConnectionString > err:", err)
 	}
-	testContainer = pgContainer
 }
 
 func runMigrations(dsn string) {
