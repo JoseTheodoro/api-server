@@ -37,10 +37,20 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
+  tempo:
+    image: grafana/tempo:latest
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./internal/config/observability/tempo/tempo.yaml:/etc/tempo.yaml
+      - ./tempo-data:/var/tempo
+    ports:
+      - "3200:3200"
   alloy:
     image: grafana/alloy:latest
     ports:
       - "12345:12345"
+      - "4317:4317"
+      - "4318:4318"
     volumes:
       - ./internal/config/observability/alloy:/etc/alloy
       - /var/run/docker.sock:/var/run/docker.sock
@@ -48,6 +58,8 @@ services:
       - run
       - --server.http.listen-addr=0.0.0.0:12345
       - /etc/alloy/config.alloy
+    depends_on:
+      - tempo
   loki:
     image: grafana/loki:3.0.0
     ports:

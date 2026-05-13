@@ -8,9 +8,19 @@ discovery.docker "containers" {
     host = "unix:///var/run/docker.sock"
 }
 
+discovery.relabel "api_only" {
+    targets = discovery.docker.containers.targets
+
+    rule {
+        source_labels = ["__meta_docker_container_name"]
+        regex         = "^/api-go$"
+        action        = "keep"
+  }
+}
+
 loki.source.docker "containers" {
     host = "unix:///var/run/docker.sock"
-    targets = discovery.docker.containers.targets
+    targets = discovery.relabel.api_only.output
     forward_to = [loki.relabel.docker.receiver]
 }
 
@@ -22,13 +32,8 @@ loki.relabel "docker" {
         replacement  = "docker"
     }
     rule {
-        source_labels = ["__meta_docker_container_name"]
-        regex = "ˆ/api-go$"
-        target_label = "keep"
-    }
-    rule {
         target_label = "app"
-        replacement = "api-go"
+        replacement  = "api-go"
     }
 }
 
@@ -36,5 +41,34 @@ loki.relabel "docker" {
 loki.write "default" {
     endpoint {
         url = "http://loki:3100/loki/api/v1/push"
+    }
+}
+
+
+otelcol.receiver.otlp "default" {
+    grpc {
+        endpoint = "0.0.0.0:4317"
+    }
+    http {
+        endpoint = "0.0.0.0:4318"
+    }
+
+    output {
+        traces = [otelcol.processor.batch.default.input]
+    }
+}
+
+otelcol.processor.batch "default" {
+    output {
+        traces = [otelcol.exporter.otlp.tempo.input]
+    }
+}
+
+otelcol.exporter.otlp "tempo" {
+    client {
+        endpoint = "tempo:4317"
+        tls {
+            insecure = true
+        }
     }
 }

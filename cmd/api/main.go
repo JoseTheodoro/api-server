@@ -16,11 +16,51 @@ import (
 	"apiserver/internal/repository/postgres"
 	"apiserver/internal/routes"
 	"apiserver/internal/services"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
 )
+
+func initTrace(ctx context.Context) (func(context.Context) error, error) {
+	exp, err := otlptracehttp.New(ctx, otlptracehttp.WithEndpoint("alloy:4318"), otlptracehttp.WithInsecure())
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := resource.New(ctx, resource.WithAttributes(semconv.ServiceName("api-go")))
+	if err != nil {
+		return nil, err
+	}
+
+	tp := trace.NewTracerProvider(
+		trace.WithBatcher(exp),
+		trace.WithResource(res),
+	)
+
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+
+	return tp.Shutdown, nil
+
+}
 
 func main() {
 
 	ctx := context.Background()
+
+	shut, err := initTrace(ctx)
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		_ = shut(context.Background())
+	}()
+
 	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(log)
 
@@ -43,7 +83,9 @@ func main() {
 	mux := http.NewServeMux()
 	routes.Register(mux, routes.Handlers{User: userHandler, Product: productHandler})
 
-	s := hhttp.NewServer(":9090", mux)
+	instrumented := otelhttp.NewHandler(mux, "http.server")
+
+	s := hhttp.NewServer(":9090", instrumented)
 	errCh := make(chan error, 1)
 	slog.Info("server started successful", "port", ":9090")
 	go func() {
