@@ -1,0 +1,40 @@
+logging {
+    level = "info"
+    format = "logfmt"
+}
+
+
+discovery.docker "containers" {
+    host = "unix:///var/run/docker.sock"
+}
+
+loki.source.docker "containers" {
+    host = "unix:///var/run/docker.sock"
+    targets = discovery.docker.containers.targets
+    forward_to = [loki.relabel.docker.receiver]
+}
+
+loki.relabel "docker" {
+    forward_to = [loki.write.default.receiver]
+     
+     rule {
+        target_label = "job"
+        replacement  = "docker"
+    }
+    rule {
+        source_labels = ["__meta_docker_container_name"]
+        regex = "ˆ/api-go$"
+        target_label = "keep"
+    }
+    rule {
+        target_label = "app"
+        replacement = "api-go"
+    }
+}
+
+
+loki.write "default" {
+    endpoint {
+        url = "http://loki:3100/loki/api/v1/push"
+    }
+}
