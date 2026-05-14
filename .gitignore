@@ -1,3 +1,5 @@
 .DS_Store
 .idea
 .vscode
+
+./internal/config/observability/tempo/tempo-data/*
