@@ -2,4 +2,4 @@
 .idea
 .vscode
 
-./internal/config/observability/tempo/tempo-data/*
+./internal/config/observability/tempo/tempo-data/
