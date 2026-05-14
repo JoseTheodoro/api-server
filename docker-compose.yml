@@ -42,7 +42,7 @@ services:
     command: ["-config.file=/etc/tempo.yaml"]
     volumes:
       - ./internal/config/observability/tempo/tempo.yaml:/etc/tempo.yaml
-      - ./tempo-data:/var/tempo
+      - ./internal/config/observability/tempo/tempo-data:/var/tempo
     ports:
       - "3200:3200"
   alloy:
