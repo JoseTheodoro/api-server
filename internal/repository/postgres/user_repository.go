@@ -8,6 +8,10 @@ import (
 
 	"apiserver/internal/domain"
 	"apiserver/internal/repository"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 type UserRepositoryPostgres struct {
@@ -20,13 +24,26 @@ func NewUserRepositoryPostgres(db *sql.DB) *UserRepositoryPostgres {
 
 func (r *UserRepositoryPostgres) Create(ctx context.Context, user *domain.User) (*domain.User, error) {
 
+	ctx, span := otel.Tracer("app/user-repository-postgres").Start(ctx, "user.repo.insert_postgres")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("user.uuid", user.UUID.String()),
+		attribute.String("db.operation", "INSERT"),
+		attribute.String("db.sql.table", "users"),
+		attribute.String("db.system", "postgres"),
+	)
+
 	err := r.db.QueryRowContext(ctx, "INSERT INTO users (name, uuid) VALUES ($1, $2) RETURNING id, uuid, name, created_at, updated_at", user.Name, user.UUID.String()).
 		Scan(&user.ID, &user.UUID, &user.Name, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "insert failed")
 		return nil, err
 	}
 
 	slog.Info("user created successful", "user", user)
+	span.SetStatus(codes.Ok, "insert OK")
 	return user, nil
 
 }

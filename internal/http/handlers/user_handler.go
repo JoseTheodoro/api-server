@@ -10,6 +10,10 @@ import (
 	"apiserver/internal/domain"
 	"apiserver/internal/http/handlers/dto"
 	"apiserver/internal/services"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 type UserHandler struct {
@@ -23,15 +27,27 @@ func NewUserHandler(userService services.UserService) *UserHandler {
 }
 
 func (u *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
+	rCtx := r.Context()
+	rCtx, span := otel.Tracer("app/user-handler").Start(rCtx, "user.handler_create")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("operation", "create"),
+	)
 
 	var ur dto.UserCreateRequest
 	if err := json.NewDecoder(r.Body).Decode(&ur); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "decode json: payload wrong")
+
 		slog.Error("unable decode to json", "err", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	if valid := ur.Validate(); valid == false {
+		span.RecordError(errors.New("invalid user"))
+		span.SetStatus(codes.Error, "invalid user payload wrong")
 		slog.Error("payload wrong", "request", ur)
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -41,13 +57,13 @@ func (u *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		Name: ur.Name,
 	}
 
-	user, err := u.userService.CreateUserFromBusinessRule(r.Context(), input)
+	user, err := u.userService.CreateUserFromBusinessRule(rCtx, input)
 	if err != nil {
 		slog.Error("handler error on create user", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-
+	span.SetStatus(codes.Ok, "handler user success")
 	writeJSON(w, http.StatusOK, user)
 }
 

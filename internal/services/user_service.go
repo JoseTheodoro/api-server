@@ -7,6 +7,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 
 	"apiserver/internal/domain"
 	"apiserver/internal/repository"
@@ -46,6 +49,14 @@ func (u *userService) GetAllUserFromAnyBusinessRule(ctx context.Context) ([]*dom
 
 func (u *userService) CreateUserFromBusinessRule(ctx context.Context, input UserCreateInput) (*domain.User, error) {
 
+	ctx, span := otel.Tracer("app/user-service").Start(ctx, "user.service.create_user")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("user.operation", "create"),
+		attribute.String("user.name", input.Name),
+	)
+
 	user := &domain.User{
 		Name: input.Name,
 		UUID: uuid.New(),
@@ -55,7 +66,7 @@ func (u *userService) CreateUserFromBusinessRule(ctx context.Context, input User
 	if err != nil {
 		return nil, fmt.Errorf("service error on create user > %w", err)
 	}
-
+	span.SetStatus(codes.Ok, "user created")
 	return user, nil
 }
 
