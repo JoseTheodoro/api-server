@@ -1,0 +1,1 @@
+{"jobs":{"badafd5c-003f-494a-a1b3-5b7cf73ae73e":{"id":"badafd5c-003f-494a-a1b3-5b7cf73ae73e","type":2,"job_detail":{"tenant":"single-tenant","retention":{}},"status":1,"created_time":"2026-05-14T19:46:16.550767168Z","start_time":"2026-05-14T19:46:16.550773709Z","end_time":"2026-05-14T19:46:16.592452298Z","worker_id":"cf089cc36b40","retries":0}}}

@@ -73,7 +73,15 @@ func TestCreateUser_ValidPayload_ReturnsCreated(T *testing.T) {
 	mux.HandleFunc("POST /users", handleUser.CreateUser)
 
 	// monta request
-	payload := bytes.NewReader([]byte(`{"name": "Testing Name"}`))
+	newUser := `{
+    "first_name":"Sebastião",
+    "last_name":"b",
+    "email":"sebastiao@api.com",
+    "password":"a",
+    "genre": "male",
+    "date_birth":"1999-09-11"
+	}`
+	payload := bytes.NewReader([]byte(newUser))
 	request := httptest.NewRequest("POST", "/users", payload)
 	w := httptest.NewRecorder()
 
@@ -84,7 +92,7 @@ func TestCreateUser_ValidPayload_ReturnsCreated(T *testing.T) {
 	}
 
 	var count int
-	if err := db.QueryRowContext(testCtx, "select count(*) from users where name = $1", "Testing Name").Scan(&count); err != nil {
+	if err := db.QueryRowContext(testCtx, "select count(*) from users where first_name = $1 and email = $2", "Sebastião", "sebastiao@api.com").Scan(&count); err != nil {
 		T.Fatal("error on executing query", err)
 	}
 
@@ -112,17 +120,22 @@ func TestUpdateUser_UserExists_ReturnsNoContent(t *testing.T) {
 	pattern := fmt.Sprintf("%s /users/{id}", method)
 
 	bigRichard := domain.User{
-		UUID: uuid.New(),
-		Name: "Big Richard",
+		UUID:      uuid.New(),
+		FirstName: "Big",
+		LastName:  "Richard",
+		Email:     "big@big.com",
+		DateBirth: "1999-09-11",
+		Password:  "123456",
+		Genre:     domain.MALE,
 	}
 	var userIDExists int
-	err = db.QueryRowContext(testCtx, "INSERT INTO users (uuid, name) VALUES ($1, $2) RETURNING id", bigRichard.UUID.String(), bigRichard.Name).Scan(&userIDExists)
+	err = db.QueryRowContext(testCtx, "INSERT INTO users (uuid, first_name, last_name, email, password, genre, date_birth) VALUES ($1, $2,$3,$4,$5,$6,$7) RETURNING id", bigRichard.UUID.String(), bigRichard.FirstName, bigRichard.LastName, bigRichard.Email, bigRichard.Password, bigRichard.Genre, bigRichard.DateBirth).Scan(&userIDExists)
 	if err != nil {
 		t.Fatal("error on insert user to update user")
 	}
 	mux.HandleFunc(pattern, handleUser.UpdateUser)
 
-	payload := bytes.NewReader([]byte(`{"name": "User Updated"}`))
+	payload := bytes.NewReader([]byte(`{"first_name": "Small"}`))
 	req := httptest.NewRequestWithContext(testCtx, method, fmt.Sprintf("/users/%d", userIDExists), payload)
 	w := httptest.NewRecorder()
 
@@ -132,13 +145,13 @@ func TestUpdateUser_UserExists_ReturnsNoContent(t *testing.T) {
 	}
 
 	userUpdated := domain.User{}
-	err = db.QueryRowContext(testCtx, "SELECT id, name, updated_at FROM users where id = $1", userIDExists).Scan(&userUpdated.ID, &userUpdated.Name, &userUpdated.UpdatedAt)
+	err = db.QueryRowContext(testCtx, "SELECT id, first_name, updated_at FROM users where id = $1", userIDExists).Scan(&userUpdated.ID, &userUpdated.FirstName, &userUpdated.UpdatedAt)
 	if err != nil {
 		t.Fatal("error executing query for find user updated", err)
 	}
 
-	if userUpdated.Name != "User Updated" {
-		t.Error("exepected User Update, got:", userUpdated.Name)
+	if userUpdated.FirstName != "Small" {
+		t.Error("exepected User Small, got:", userUpdated.FirstName)
 	}
 }
 

@@ -1,25 +1,35 @@
 package dto
 
+import (
+	"apiserver/internal/domain"
+)
+
 type UserCreateRequest struct {
-	Name string `json:"name"`
+	FirstName string       `json:"first_name"`
+	LastName  string       `json:"last-name"`
+	Email     string       `json:"email"`
+	DateBirth string       `json:"date_birth"`
+	Genre     domain.Genre `json:"genre"`
+	Password  string       `json:"password"`
 }
 
 func (u *UserCreateRequest) Validate() bool {
-	if u.Name == "" {
+	if u.FirstName == "" {
 		return false
 	}
 	return true
 }
 
 type UserUpdateRequest struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
+	ID        int           `json:"id"`
+	FirstName *string       `json:"first_name"`
+	LastName  *string       `json:"last_name"`
+	Email     *string       `json:"email"`
+	Password  *string       `json:"password"`
+	DateBirth *string       `json:"date_birth"`
+	Genre     *domain.Genre `json:"genre"`
 }
 
 func (up *UserUpdateRequest) Validate() bool {
-	if up.ID <= 0 || up.Name == "" {
-		return false
-	}
-
 	return true
 }

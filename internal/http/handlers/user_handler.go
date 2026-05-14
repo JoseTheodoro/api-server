@@ -54,7 +54,12 @@ func (u *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	input := services.UserCreateInput{
-		Name: ur.Name,
+		FirstName: ur.FirstName,
+		LastName:  ur.LastName,
+		Genre:     ur.Genre,
+		Email:     ur.Email,
+		DateBirth: ur.DateBirth,
+		Password:  ur.Password,
 	}
 
 	user, err := u.userService.CreateUserFromBusinessRule(rCtx, input)
@@ -152,8 +157,13 @@ func (u *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 
 	// create a update user input
 	input := services.UserUpdateInput{
-		ID:   userUpdateRequest.ID,
-		Name: userUpdateRequest.Name,
+		ID:        userUpdateRequest.ID,
+		FirstName: userUpdateRequest.FirstName,
+		LastName:  userUpdateRequest.LastName,
+		Email:     userUpdateRequest.Email,
+		Genre:     userUpdateRequest.Genre,
+		DateBirth: userUpdateRequest.DateBirth,
+		Password:  userUpdateRequest.Password,
 	}
 
 	if err := u.userService.UpdateUser(r.Context(), input); err != nil {

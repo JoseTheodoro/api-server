@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
+	"apiserver/internal/config/observability/logging"
 	"apiserver/internal/domain"
 	"apiserver/internal/repository"
 )
@@ -29,12 +30,22 @@ type userService struct {
 
 type UserUpdateInput struct {
 	ID        int
-	Name      string
-	UpdatedAt time.Time
+	FirstName *string
+	LastName  *string
+	Email     *string
+	Password  *string
+	DateBirth *string
+	Genre     *domain.Genre
+	UpdatedAt *time.Time
 }
 
 type UserCreateInput struct {
-	Name string
+	FirstName string
+	LastName  string
+	Email     string
+	DateBirth string
+	Genre     domain.Genre
+	Password  string
 }
 
 func NewUserService(r repository.UserRepository) UserService {
@@ -50,23 +61,32 @@ func (u *userService) GetAllUserFromAnyBusinessRule(ctx context.Context) ([]*dom
 func (u *userService) CreateUserFromBusinessRule(ctx context.Context, input UserCreateInput) (*domain.User, error) {
 
 	ctx, span := otel.Tracer("app/user-service").Start(ctx, "user.service.create_user")
+	log := logging.NewLogger().LoggerFromContext(ctx)
 	defer span.End()
 
 	span.SetAttributes(
 		attribute.String("user.operation", "create"),
-		attribute.String("user.name", input.Name),
+		attribute.String("user.name", input.FirstName),
 	)
 
 	user := &domain.User{
-		Name: input.Name,
-		UUID: uuid.New(),
+		UUID:      uuid.New(),
+		FirstName: input.FirstName,
+		LastName:  input.LastName,
+		Email:     input.Email,
+		Password:  input.Password,
+		DateBirth: input.DateBirth,
+		Genre:     input.Genre,
 	}
 
 	user, err := u.repository.Create(ctx, user)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "create user failed")
 		return nil, fmt.Errorf("service error on create user > %w", err)
 	}
 	span.SetStatus(codes.Ok, "user created")
+	log.Info("user created successful", "user", user)
 	return user, nil
 }
 
@@ -97,13 +117,43 @@ func (u *userService) UpdateUser(ctx context.Context, input UserUpdateInput) err
 	if err != nil {
 		return fmt.Errorf("user not found for update > %w", err)
 	}
-	now := time.Now().UTC()
-	user.UpdatedAt = &now
-	user.Name = input.Name
+
+	user = u.fillUserToUpdate(user, &input)
+
 	if err := u.repository.Update(ctx, user); err != nil {
 		return err
 	}
 
 	return nil
 
+}
+
+func (u *userService) fillUserToUpdate(user *domain.User, i *UserUpdateInput) *domain.User {
+
+	if i.FirstName != nil {
+		user.FirstName = *i.FirstName
+	}
+
+	if i.LastName != nil {
+		user.LastName = *i.LastName
+	}
+
+	if i.Email != nil {
+		user.Email = *i.Email
+	}
+
+	if i.Password != nil {
+		user.Password = *i.Password
+	}
+
+	if i.Genre != nil {
+		user.Genre = *i.Genre
+	}
+
+	if i.DateBirth != nil {
+		user.DateBirth = *i.DateBirth
+	}
+	now := time.Now().UTC()
+	user.UpdatedAt = &now
+	return user
 }

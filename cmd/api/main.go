@@ -1,6 +1,7 @@
 package main
 
 import (
+	"apiserver/internal/config"
 	"context"
 	"errors"
 	"log/slog"
@@ -10,50 +11,22 @@ import (
 	"syscall"
 	"time"
 
+	"apiserver/internal/config/observability/logging"
 	hhttp "apiserver/internal/http"
 	"apiserver/internal/http/handlers"
-	"apiserver/internal/repository/memory"
 	"apiserver/internal/repository/postgres"
 	"apiserver/internal/routes"
 	"apiserver/internal/services"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
-	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/resource"
-	"go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
 )
-
-func initTrace(ctx context.Context) (func(context.Context) error, error) {
-	exp, err := otlptracehttp.New(ctx, otlptracehttp.WithEndpoint("alloy:4318"), otlptracehttp.WithInsecure())
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := resource.New(ctx, resource.WithAttributes(semconv.ServiceName("api-go")))
-	if err != nil {
-		return nil, err
-	}
-
-	tp := trace.NewTracerProvider(
-		trace.WithBatcher(exp),
-		trace.WithResource(res),
-	)
-
-	otel.SetTracerProvider(tp)
-	otel.SetTextMapPropagator(propagation.TraceContext{})
-
-	return tp.Shutdown, nil
-
-}
 
 func main() {
 
 	ctx := context.Background()
+	config := config.NewConfig()
 
-	shut, err := initTrace(ctx)
+	shut, err := config.StartTrace(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -61,8 +34,8 @@ func main() {
 		_ = shut(context.Background())
 	}()
 
-	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
-	slog.SetDefault(log)
+	l := logging.NewLogger()
+	slog.SetDefault(l.Log)
 
 	conn := postgres.NewConnection(os.Getenv("DATABASE_DSN"))
 	db, err := conn.Connect(ctx)
@@ -76,12 +49,8 @@ func main() {
 	userService := services.NewUserService(userRepositoryPostgres)
 	userHandler := handlers.NewUserHandler(userService)
 
-	productRepository := memory.NewProductRepositoryMemory()
-	productService := services.NewProductService(productRepository)
-	productHandler := handlers.NewProductHandler(productService)
-
 	mux := http.NewServeMux()
-	routes.Register(mux, routes.Handlers{User: userHandler, Product: productHandler})
+	routes.Register(mux, routes.Handlers{User: userHandler})
 
 	instrumented := otelhttp.NewHandler(mux, "http.server")
 
