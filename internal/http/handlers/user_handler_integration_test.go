@@ -1,9 +1,11 @@
 package handlers_test
 
 import (
+	"apiserver/internal/repository/postgres/queries"
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -28,6 +30,7 @@ import (
 var (
 	conn                   *postgres.Connection
 	db                     *sql.DB
+	q                      *queries.Queries
 	testCtx                context.Context
 	err                    error
 	testDSN                string
@@ -51,6 +54,7 @@ func setupGlobalState() {
 	if err != nil {
 		log.Fatal("error to connect postgres container")
 	}
+	q = queries.New(db)
 	runMigrations(testDSN)
 
 	repositoryUserPostgres = postgres.NewUserRepositoryPostgres(db)
@@ -90,14 +94,18 @@ func TestCreateUser_ValidPayload_ReturnsCreated(T *testing.T) {
 	if w.Code != http.StatusOK {
 		T.Error("failed create user on endpoint", "statuscode:", w.Code)
 	}
-
-	var count int
-	if err := db.QueryRowContext(testCtx, "select count(*) from users where first_name = $1 and email = $2", "Sebastião", "sebastiao@api.com").Scan(&count); err != nil {
-		T.Fatal("error on executing query", err)
+	var u domain.User
+	if err := json.NewDecoder(w.Body).Decode(&u); err != nil {
+		T.Error("failed decoder response user create", err)
 	}
 
-	if count == 0 {
-		T.Error("User doesnt exists on table users")
+	userFound, err := q.GetUser(testCtx, int64(u.ID))
+	if err != nil {
+		T.Error("error get user on DB", err)
+	}
+
+	if userFound.Email != "sebastiao@api.com" {
+		T.Errorf("expected user email: sebastiao@api.com, got: %v", userFound.Email)
 	}
 
 }

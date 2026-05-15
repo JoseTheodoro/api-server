@@ -1,12 +1,11 @@
 package postgres
 
 import (
+	"apiserver/internal/domain"
+	"apiserver/internal/repository/postgres/queries"
 	"context"
 	"database/sql"
-	"errors"
-
-	"apiserver/internal/domain"
-	"apiserver/internal/repository"
+	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -15,10 +14,11 @@ import (
 
 type UserRepositoryPostgres struct {
 	db *sql.DB
+	qq *queries.Queries
 }
 
 func NewUserRepositoryPostgres(db *sql.DB) *UserRepositoryPostgres {
-	return &UserRepositoryPostgres{db: db}
+	return &UserRepositoryPostgres{db: db, qq: queries.New(db)}
 }
 
 func (r *UserRepositoryPostgres) Create(ctx context.Context, user *domain.User) (*domain.User, error) {
@@ -33,78 +33,130 @@ func (r *UserRepositoryPostgres) Create(ctx context.Context, user *domain.User) 
 		attribute.String("db.system", "postgres"),
 	)
 
-	err := r.db.QueryRowContext(ctx, "INSERT INTO users (uuid, first_name, last_name, email, genre, date_birth, password) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, uuid, first_name, last_name, email, password, date_birth, created_at, updated_at", user.UUID.String(), user.FirstName, user.LastName, user.Email, user.Genre, user.DateBirth, user.Password).
-		Scan(&user.ID, &user.UUID, &user.FirstName, &user.LastName, &user.Email, &user.Password, &user.DateBirth, &user.CreatedAt, &user.UpdatedAt)
+	dob, err := time.Parse("2006-01-01", user.DateBirth)
+	if err != nil {
+		return nil, err
+	}
+
+	params := queries.CreateUserParams{
+		Uuid:      user.UUID,
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+		Email:     user.Email,
+		DateBirth: dob,
+		Password:  user.Password,
+		Genre:     queries.Genres(user.Genre),
+	}
+	created, err := r.qq.CreateUser(ctx, params)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "insert failed")
 		return nil, err
 	}
 	span.SetStatus(codes.Ok, "insert OK")
+
+	user = &domain.User{
+		ID:        int(created.ID),
+		UUID:      created.Uuid,
+		FirstName: created.FirstName,
+		LastName:  created.LastName,
+		Email:     created.Email,
+		Password:  created.Password,
+		Genre:     domain.Genre(created.Genre),
+		CreatedAt: created.CreatedAt,
+		UpdatedAt: &created.UpdatedAt.Time,
+		DateBirth: created.DateBirth.Format("2006-01-02"),
+	}
+
 	return user, nil
 
 }
 
 func (r *UserRepositoryPostgres) GetAll(ctx context.Context) ([]*domain.User, error) {
 
-	var users []*domain.User
-	rows, err := r.db.QueryContext(ctx, "SELECT id, uuid, first_name, last_name, email, password, date_birth, genre, created_at, updated_at FROM users")
+	rows, err := r.qq.ListUsers(ctx)
 	if err != nil {
 		return nil, err
 	}
+	users := make([]*domain.User, 0, len(rows))
 
-	for rows.Next() {
-		u := &domain.User{}
-		if err := rows.Scan(&u.ID, &u.UUID, &u.FirstName, &u.Email, &u.Password, &u.DateBirth, &u.Genre, &u.CreatedAt, &u.UpdatedAt); err != nil {
-			return nil, err
+	for _, u := range rows {
+
+		usr := &domain.User{
+			ID:        int(u.ID),
+			UUID:      u.Uuid,
+			FirstName: u.FirstName,
+			LastName:  u.LastName,
+			Email:     u.Email,
+			Password:  u.Password,
+			Genre:     domain.Genre(u.Genre),
+			CreatedAt: u.CreatedAt,
+			UpdatedAt: &u.UpdatedAt.Time,
+			DateBirth: u.DateBirth.Format("2006-01-02"),
 		}
-		users = append(users, u)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
+		users = append(users, usr)
 	}
 
 	return users, nil
+
 }
 
 func (r *UserRepositoryPostgres) FindByID(ctx context.Context, id int) (*domain.User, error) {
-	user := &domain.User{}
-	err := r.db.QueryRowContext(ctx, "SELECT id, uuid, first_name, last_name, email, date_birth, password, genre, created_at, updated_at FROM users WHERE id = $1", id).Scan(&user.ID, &user.UUID, &user.FirstName, &user.LastName, &user.Email, &user.DateBirth, &user.Password, &user.Genre, &user.CreatedAt, &user.UpdatedAt)
+	row, err := r.qq.GetUser(ctx, int64(id))
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, repository.ErrNotFound
-		}
 		return nil, err
 	}
 
-	return user, nil
+	var t *time.Time
+	if row.UpdatedAt.Valid {
+		t = &row.UpdatedAt.Time
+	}
+
+	user := &domain.User{
+		ID:        int(row.ID),
+		UUID:      row.Uuid,
+		FirstName: row.FirstName,
+		LastName:  row.LastName,
+		Email:     row.Email,
+		Password:  row.Password,
+		Genre:     domain.Genre(row.Genre),
+		DateBirth: row.DateBirth.Format("2006-01-02"),
+		CreatedAt: row.CreatedAt,
+		UpdatedAt: t,
+	}
+
+	return user, err
+
 }
 
 func (r *UserRepositoryPostgres) Delete(ctx context.Context, id int) error {
-	result, err := r.db.ExecContext(ctx, "DELETE FROM users where id = $1", id)
+	err := r.qq.DeleteUser(ctx, int64(id))
 	if err != nil {
 		return err
 	}
-
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-
-	if rows == 0 {
-		return repository.ErrNoRowsAffected
-	}
-
 	return nil
-
 }
 
 func (r *UserRepositoryPostgres) Update(ctx context.Context, user *domain.User) error {
-	_, err := r.db.ExecContext(ctx, "UPDATE users SET first_name = $2, updated_at = $3, last_name = $4, email = $5, password = $6, date_birth = $7, genre = $8 WHERE id = $1", user.ID, user.FirstName, user.UpdatedAt, user.LastName, user.Email, user.Password, user.DateBirth, user.Genre)
+
+	dob, err := time.Parse("2006-01-02", user.DateBirth)
 	if err != nil {
 		return err
 	}
 
+	userParams := queries.UpdateUserParams{
+		ID:        int64(user.ID),
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+		Email:     user.Email,
+		DateBirth: dob,
+		Password:  user.Password,
+		Genre:     queries.Genres(user.Genre),
+		UpdatedAt: sql.NullTime{Time: time.Now().UTC(), Valid: true},
+	}
+	_, err = r.qq.UpdateUser(ctx, userParams)
+	if err != nil {
+		return err
+	}
 	return nil
 }

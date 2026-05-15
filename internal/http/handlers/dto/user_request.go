@@ -6,7 +6,7 @@ import (
 
 type UserCreateRequest struct {
 	FirstName string       `json:"first_name"`
-	LastName  string       `json:"last-name"`
+	LastName  string       `json:"last_name"`
 	Email     string       `json:"email"`
 	DateBirth string       `json:"date_birth"`
 	Genre     domain.Genre `json:"genre"`

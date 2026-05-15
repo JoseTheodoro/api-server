@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -165,6 +166,8 @@ func (u *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		DateBirth: userUpdateRequest.DateBirth,
 		Password:  userUpdateRequest.Password,
 	}
+
+	fmt.Printf("HandlernewUser=%v\n", input)
 
 	if err := u.userService.UpdateUser(r.Context(), input); err != nil {
 		if errors.Is(err, domain.ErrUserNotFound) {
