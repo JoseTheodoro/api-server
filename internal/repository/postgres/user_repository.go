@@ -4,20 +4,19 @@ import (
 	"apiserver/internal/domain"
 	"apiserver/internal/repository/postgres/queries"
 	"context"
-	"database/sql"
-	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 )
 
 type UserRepositoryPostgres struct {
-	db *sql.DB
+	db *pgxpool.Pool
 	qq *queries.Queries
 }
 
-func NewUserRepositoryPostgres(db *sql.DB) *UserRepositoryPostgres {
+func NewUserRepositoryPostgres(db *pgxpool.Pool) *UserRepositoryPostgres {
 	return &UserRepositoryPostgres{db: db, qq: queries.New(db)}
 }
 
@@ -33,19 +32,14 @@ func (r *UserRepositoryPostgres) Create(ctx context.Context, user *domain.User) 
 		attribute.String("db.system", "postgres"),
 	)
 
-	dob, err := time.Parse("2006-01-01", user.DateBirth)
-	if err != nil {
-		return nil, err
-	}
-
 	params := queries.CreateUserParams{
 		Uuid:      user.UUID,
 		FirstName: user.FirstName,
 		LastName:  user.LastName,
 		Email:     user.Email,
-		DateBirth: dob,
+		DateBirth: user.DateBirth,
 		Password:  user.Password,
-		Genre:     queries.Genres(user.Genre),
+		Genre:     user.Genre,
 	}
 	created, err := r.qq.CreateUser(ctx, params)
 	if err != nil {
@@ -62,10 +56,11 @@ func (r *UserRepositoryPostgres) Create(ctx context.Context, user *domain.User) 
 		LastName:  created.LastName,
 		Email:     created.Email,
 		Password:  created.Password,
-		Genre:     domain.Genre(created.Genre),
+		Genre:     created.Genre,
 		CreatedAt: created.CreatedAt,
-		UpdatedAt: &created.UpdatedAt.Time,
-		DateBirth: created.DateBirth.Format("2006-01-02"),
+		UpdatedAt: created.UpdatedAt,
+		DeletedAt: created.DeletedAt,
+		DateBirth: created.DateBirth,
 	}
 
 	return user, nil
@@ -89,10 +84,10 @@ func (r *UserRepositoryPostgres) GetAll(ctx context.Context) ([]*domain.User, er
 			LastName:  u.LastName,
 			Email:     u.Email,
 			Password:  u.Password,
-			Genre:     domain.Genre(u.Genre),
+			Genre:     u.Genre,
 			CreatedAt: u.CreatedAt,
-			UpdatedAt: &u.UpdatedAt.Time,
-			DateBirth: u.DateBirth.Format("2006-01-02"),
+			UpdatedAt: u.UpdatedAt,
+			DateBirth: u.DateBirth,
 		}
 		users = append(users, usr)
 	}
@@ -107,11 +102,6 @@ func (r *UserRepositoryPostgres) FindByID(ctx context.Context, id int) (*domain.
 		return nil, err
 	}
 
-	var t *time.Time
-	if row.UpdatedAt.Valid {
-		t = &row.UpdatedAt.Time
-	}
-
 	user := &domain.User{
 		ID:        int(row.ID),
 		UUID:      row.Uuid,
@@ -119,10 +109,10 @@ func (r *UserRepositoryPostgres) FindByID(ctx context.Context, id int) (*domain.
 		LastName:  row.LastName,
 		Email:     row.Email,
 		Password:  row.Password,
-		Genre:     domain.Genre(row.Genre),
-		DateBirth: row.DateBirth.Format("2006-01-02"),
+		Genre:     row.Genre,
+		DateBirth: row.DateBirth,
 		CreatedAt: row.CreatedAt,
-		UpdatedAt: t,
+		UpdatedAt: row.UpdatedAt,
 	}
 
 	return user, err
@@ -139,22 +129,17 @@ func (r *UserRepositoryPostgres) Delete(ctx context.Context, id int) error {
 
 func (r *UserRepositoryPostgres) Update(ctx context.Context, user *domain.User) error {
 
-	dob, err := time.Parse("2006-01-02", user.DateBirth)
-	if err != nil {
-		return err
-	}
-
 	userParams := queries.UpdateUserParams{
 		ID:        int64(user.ID),
 		FirstName: user.FirstName,
 		LastName:  user.LastName,
 		Email:     user.Email,
-		DateBirth: dob,
+		DateBirth: user.DateBirth,
 		Password:  user.Password,
-		Genre:     queries.Genres(user.Genre),
-		UpdatedAt: sql.NullTime{Time: time.Now().UTC(), Valid: true},
+		Genre:     user.Genre,
+		UpdatedAt: user.UpdatedAt,
 	}
-	_, err = r.qq.UpdateUser(ctx, userParams)
+	_, err := r.qq.UpdateUser(ctx, userParams)
 	if err != nil {
 		return err
 	}

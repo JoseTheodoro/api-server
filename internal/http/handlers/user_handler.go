@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"apiserver/internal/domain"
 	"apiserver/internal/http/handlers/dto"
@@ -54,12 +55,18 @@ func (u *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	strDateBirth, err := time.Parse("2006-01-01", ur.DateBirth)
+	if err != nil {
+		slog.Error("payload wrong: date_birth invalid", "request", ur)
+		w.WriteHeader(http.StatusBadRequest)
+	}
+
 	input := services.UserCreateInput{
 		FirstName: ur.FirstName,
 		LastName:  ur.LastName,
 		Genre:     ur.Genre,
 		Email:     ur.Email,
-		DateBirth: ur.DateBirth,
+		DateBirth: strDateBirth,
 		Password:  ur.Password,
 	}
 
@@ -142,7 +149,7 @@ func (u *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// create a request and validate
-	if err := json.NewDecoder(r.Body).Decode(&userUpdateRequest); err != nil {
+	if err = json.NewDecoder(r.Body).Decode(&userUpdateRequest); err != nil {
 		slog.Error("unable decode payload")
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -156,6 +163,18 @@ func (u *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var dtBirth *time.Time
+	var parsed time.Time
+	if userUpdateRequest.DateBirth != nil {
+		parsed, err = time.Parse("2006-01-02", *userUpdateRequest.DateBirth)
+		if err != nil {
+			slog.Error("request invalid", "rquest", userUpdateRequest)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		dtBirth = &parsed
+	}
+
 	// create a update user input
 	input := services.UserUpdateInput{
 		ID:        userUpdateRequest.ID,
@@ -163,7 +182,7 @@ func (u *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		LastName:  userUpdateRequest.LastName,
 		Email:     userUpdateRequest.Email,
 		Genre:     userUpdateRequest.Genre,
-		DateBirth: userUpdateRequest.DateBirth,
+		DateBirth: dtBirth,
 		Password:  userUpdateRequest.Password,
 	}
 
