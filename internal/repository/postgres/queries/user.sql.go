@@ -7,9 +7,9 @@ package queries
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
+	"apiserver/internal/domain"
 	"github.com/google/uuid"
 )
 
@@ -27,13 +27,13 @@ type CreateUserParams struct {
 	FirstName string
 	LastName  string
 	Email     string
-	Genre     Genres
+	Genre     domain.Genre
 	DateBirth time.Time
 	Password  string
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, createUser,
+	row := q.db.QueryRow(ctx, createUser,
 		arg.Uuid,
 		arg.FirstName,
 		arg.LastName,
@@ -65,7 +65,7 @@ WHERE id = $1
 `
 
 func (q *Queries) DeleteUser(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteUser, id)
+	_, err := q.db.Exec(ctx, deleteUser, id)
 	return err
 }
 
@@ -75,7 +75,7 @@ WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetUser(ctx context.Context, id int64) (User, error) {
-	row := q.db.QueryRowContext(ctx, getUser, id)
+	row := q.db.QueryRow(ctx, getUser, id)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -98,7 +98,7 @@ SELECT id, uuid, first_name, last_name, email, date_birth, genre, password, crea
 `
 
 func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
-	rows, err := q.db.QueryContext(ctx, listUsers)
+	rows, err := q.db.Query(ctx, listUsers)
 	if err != nil {
 		return nil, err
 	}
@@ -123,9 +123,6 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -142,16 +139,16 @@ RETURNING id, uuid, first_name, last_name, email, date_birth, genre, password, c
 type UpdateUserParams struct {
 	ID        int64
 	FirstName string
-	UpdatedAt sql.NullTime
+	UpdatedAt *time.Time
 	LastName  string
 	Email     string
 	Password  string
 	DateBirth time.Time
-	Genre     Genres
+	Genre     domain.Genre
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, updateUser,
+	row := q.db.QueryRow(ctx, updateUser,
 		arg.ID,
 		arg.FirstName,
 		arg.UpdatedAt,

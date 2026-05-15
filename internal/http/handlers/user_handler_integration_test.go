@@ -4,7 +4,6 @@ import (
 	"apiserver/internal/repository/postgres/queries"
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,23 +12,25 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"apiserver/internal/domain"
+	"apiserver/internal/http/handlers"
+	"apiserver/internal/repository/postgres"
+	"apiserver/internal/services"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	pg "github.com/testcontainers/testcontainers-go/modules/postgres"
-
-	"apiserver/internal/domain"
-	"apiserver/internal/http/handlers"
-	"apiserver/internal/repository/postgres"
-	"apiserver/internal/services"
 )
 
 var (
 	conn                   *postgres.Connection
-	db                     *sql.DB
+	db                     *pgxpool.Pool
 	q                      *queries.Queries
 	testCtx                context.Context
 	err                    error
@@ -49,14 +50,12 @@ func TestMain(M *testing.M) {
 
 func setupGlobalState() {
 	createPostgresContainer()
-	conn = postgres.NewConnection(testDSN)
-	db, err = conn.Connect(testCtx)
+	db, err = postgres.NewConnection(testDSN).Connect(testCtx)
 	if err != nil {
 		log.Fatal("error to connect postgres container")
 	}
 	q = queries.New(db)
 	runMigrations(testDSN)
-
 	repositoryUserPostgres = postgres.NewUserRepositoryPostgres(db)
 	serviceUser = services.NewUserService(repositoryUserPostgres)
 	handleUser = handlers.NewUserHandler(serviceUser)
@@ -127,24 +126,33 @@ func TestUpdateUser_UserExists_ReturnsNoContent(t *testing.T) {
 	method := "PUT"
 	pattern := fmt.Sprintf("%s /users/{id}", method)
 
-	bigRichard := domain.User{
-		UUID:      uuid.New(),
+	bigRichard := queries.CreateUserParams{
+		Uuid:      uuid.New(),
 		FirstName: "Big",
 		LastName:  "Richard",
 		Email:     "big@big.com",
-		DateBirth: "1999-09-11",
+		DateBirth: time.Date(1999, time.April, 23, 10, 10, 10, 10, time.UTC),
 		Password:  "123456",
 		Genre:     domain.MALE,
 	}
-	var userIDExists int
-	err = db.QueryRowContext(testCtx, "INSERT INTO users (uuid, first_name, last_name, email, password, genre, date_birth) VALUES ($1, $2,$3,$4,$5,$6,$7) RETURNING id", bigRichard.UUID.String(), bigRichard.FirstName, bigRichard.LastName, bigRichard.Email, bigRichard.Password, bigRichard.Genre, bigRichard.DateBirth).Scan(&userIDExists)
-	if err != nil {
-		t.Fatal("error on insert user to update user")
+
+	row, pa := q.CreateUser(testCtx, bigRichard)
+	if pa != nil {
+		t.Fatalf("error to create user on db > %v ", err)
 	}
+
+	userCreated := &domain.User{
+		ID:    int(row.ID),
+		UUID:  row.Uuid,
+		Email: row.Email,
+	}
+
+	fmt.Printf("userCreated=%v", userCreated)
+
 	mux.HandleFunc(pattern, handleUser.UpdateUser)
 
 	payload := bytes.NewReader([]byte(`{"first_name": "Small"}`))
-	req := httptest.NewRequestWithContext(testCtx, method, fmt.Sprintf("/users/%d", userIDExists), payload)
+	req := httptest.NewRequestWithContext(testCtx, method, fmt.Sprintf("/users/%d", userCreated.ID), payload)
 	w := httptest.NewRecorder()
 
 	mux.ServeHTTP(w, req)
@@ -153,14 +161,21 @@ func TestUpdateUser_UserExists_ReturnsNoContent(t *testing.T) {
 	}
 
 	userUpdated := domain.User{}
-	err = db.QueryRowContext(testCtx, "SELECT id, first_name, updated_at FROM users where id = $1", userIDExists).Scan(&userUpdated.ID, &userUpdated.FirstName, &userUpdated.UpdatedAt)
+	userFoundRow, err := q.GetUser(testCtx, int64(userCreated.ID))
 	if err != nil {
-		t.Fatal("error executing query for find user updated", err)
+		t.Errorf("error on get user on db > %v", err)
 	}
 
-	if userUpdated.FirstName != "Small" {
+	userUpdated.FirstName = userFoundRow.FirstName
+
+	if userFoundRow.FirstName != "Small" {
 		t.Error("exepected User Small, got:", userUpdated.FirstName)
 	}
+
+	if userFoundRow.Email != userCreated.Email {
+		t.Errorf("expected email: %s, got: %s", userCreated.Email, userFoundRow.Email)
+	}
+
 }
 
 func createPostgresContainer() {

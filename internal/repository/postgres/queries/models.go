@@ -5,11 +5,11 @@
 package queries
 
 import (
-	"database/sql"
 	"database/sql/driver"
 	"fmt"
 	"time"
 
+	"apiserver/internal/domain"
 	"github.com/google/uuid"
 )
 
@@ -62,9 +62,9 @@ type User struct {
 	LastName  string
 	Email     string
 	DateBirth time.Time
-	Genre     Genres
+	Genre     domain.Genre
 	Password  string
 	CreatedAt time.Time
-	UpdatedAt sql.NullTime
-	DeletedAt sql.NullTime
+	UpdatedAt *time.Time
+	DeletedAt *time.Time
 }

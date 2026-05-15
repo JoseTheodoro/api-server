@@ -24,9 +24,9 @@ import (
 func main() {
 
 	ctx := context.Background()
-	config := config.NewConfig()
+	cfg := config.NewConfig()
 
-	shut, err := config.StartTrace(ctx)
+	shut, err := cfg.StartTrace(ctx)
 	if err != nil {
 		panic(err)
 	}

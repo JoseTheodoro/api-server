@@ -34,7 +34,7 @@ type UserUpdateInput struct {
 	LastName  *string
 	Email     *string
 	Password  *string
-	DateBirth *string
+	DateBirth *time.Time
 	Genre     *domain.Genre
 	UpdatedAt *time.Time
 }
@@ -43,7 +43,7 @@ type UserCreateInput struct {
 	FirstName string
 	LastName  string
 	Email     string
-	DateBirth string
+	DateBirth time.Time
 	Genre     domain.Genre
 	Password  string
 }

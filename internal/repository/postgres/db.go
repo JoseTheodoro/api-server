@@ -2,9 +2,8 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Connection struct {
@@ -15,13 +14,13 @@ func NewConnection(dsn string) *Connection {
 	return &Connection{dsn: dsn}
 }
 
-func (c *Connection) Connect(ctx context.Context) (*sql.DB, error) {
+func (c *Connection) Connect(ctx context.Context) (*pgxpool.Pool, error) {
 
-	db, err := sql.Open("pgx", c.dsn)
+	db, err := pgxpool.New(ctx, c.dsn)
 	if err != nil {
 		return nil, err
 	}
-	if err := db.PingContext(ctx); err != nil {
+	if err := db.Ping(ctx); err != nil {
 		db.Close()
 		return nil, err
 	}
